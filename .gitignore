@@ -35,9 +35,11 @@ Release
 Debug
 x64
 ipch
+.vs
 *.suo
 *.sdf
 *.db
+*.opendb
 *.opensdf
 *.user
 *.csh
