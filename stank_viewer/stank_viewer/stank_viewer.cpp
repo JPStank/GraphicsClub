@@ -4,17 +4,28 @@
 #include "stdafx.h"
 #include "stank_viewer.h"
 
-#define MAX_LOADSTRING 100
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+//HINSTANCE hInst;
+
+LPCTSTR szTitle = L"Stank's radical Viewer";
+LPCTSTR szWindowClass = L"Stank Window";
+HWND hwnd = NULL;
+
+int width = 800;
+int height = 600;
+
+bool fullscreen = false;
+
+bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int w, int h, bool fullscreen);
+
+void mainloop();
+
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+//LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -25,131 +36,117 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: Place code here.
 
-    // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_STANKVIEWER, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
+	if (!InitializeWindow(hInstance, nCmdShow, width, height, fullscreen))
+	{
+		MessageBox(0, L"Window Initialization - Failed",
+			L"ERROR", MB_OK);
+		return 0;
+	}
 
-    // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
+	mainloop();
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_STANKVIEWER));
 
-    MSG msg;
-
-    // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
-
-    return (int) msg.wParam;
+    return 0;
 }
 
-
-
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
-ATOM MyRegisterClass(HINSTANCE hInstance)
+bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int w, int h, bool fullscreen)
 {
-    WNDCLASSEXW wcex;
+	if (fullscreen)
+	{
+		HMONITOR hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+		MONITORINFO mi = { sizeof(mi) };
+		GetMonitorInfo(hmon, &mi);
 
-    wcex.cbSize = sizeof(WNDCLASSEX);
+		width = mi.rcMonitor.right - mi.rcMonitor.left;
+		height = mi.rcMonitor.bottom - mi.rcMonitor.top;
+	}
 
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_STANKVIEWER));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_STANKVIEWER);
-    wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+	WNDCLASSEX wc;
 
-    return RegisterClassExW(&wcex);
+	wc.cbSize = sizeof(WNDCLASSEX);
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc = WndProc;
+	wc.cbClsExtra = NULL;
+	wc.cbWndExtra = NULL;
+	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 2);
+	wc.lpszMenuName = NULL;
+	wc.lpszClassName = szWindowClass;
+	wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+
+	if (!RegisterClassEx(&wc))
+	{
+		MessageBox(NULL, L"Error registering window class",
+			L"ERROR", MB_OK | MB_ICONERROR);
+		return false;
+	}
+
+	hwnd = CreateWindowEx(NULL,
+		szWindowClass,
+		szTitle,
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		width, height,
+		NULL,
+		NULL,
+		hInstance,
+		NULL);
+
+	if (!hwnd)
+	{
+		MessageBox(NULL, L"Error Creating Window",
+			L"ERROR", MB_OK | MB_ICONERROR);
+		return false;
+	}
+
+	if (fullscreen)
+	{
+		SetWindowLong(hwnd, GWL_STYLE, 0);
+	}
+
+	ShowWindow(hwnd, ShowWnd);
+	UpdateWindow(hwnd);
+
+	return true;
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+void mainloop() 
 {
-   hInst = hInstance; // Store instance handle in our global variable
+	MSG msg;
+	ZeroMemory(&msg, sizeof(msg));
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+	while (true)
+	{
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			if (msg.message == WM_QUIT)
+				break;
 
-   if (!hWnd)
-   {
-      return FALSE;
-   }
-
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
-
-   return TRUE;
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else
+		{
+			//run code
+		}
+	}
 }
 
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE: Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-    case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
-        }
-        break;
+	case WM_KEYDOWN:
+		if (wParam == VK_ESCAPE)
+		{
+			if (MessageBox(0, L"Are you sure you want to exit?",
+				L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
+				DestroyWindow(hwnd);
+		}
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -157,24 +154,4 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
-}
-
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
 }
