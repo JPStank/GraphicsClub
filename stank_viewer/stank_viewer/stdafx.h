@@ -17,7 +17,11 @@
 #include <DirectXMath.h>
 #include "d3dx12.h"
 
+#define SAFE_RELEASE(p) { if ((p)) {(p)->Release(); (p) = nullptr;}}
+
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+
+bool Running = true;
 
 // d3d stuff
 const int frameBufferCount = 3;

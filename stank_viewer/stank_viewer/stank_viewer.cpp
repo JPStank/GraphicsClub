@@ -29,12 +29,12 @@ void mainloop();
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+					_In_opt_ HINSTANCE hPrevInstance,
+					_In_ LPWSTR lpCmdLine,
+					_In_ int nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
 
 
 	if (!InitializeWindow(hInstance, nCmdShow, width, height, fullscreen))
@@ -59,7 +59,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	CloseHandle(fenceEvent);
 
-    return 0;
+	return 0;
 }
 
 bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int w, int h, bool fullscreen)
@@ -142,7 +142,8 @@ void mainloop()
 		}
 		else
 		{
-			//run code
+			Update();
+			Render();
 		}
 	}
 }
@@ -150,8 +151,8 @@ void mainloop()
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    switch (message)
-    {
+	switch (message)
+	{
 	case WM_KEYDOWN:
 		if (wParam == VK_ESCAPE)
 		{
@@ -159,13 +160,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				L"Really?", MB_YESNO | MB_ICONQUESTION) == IDYES)
 				DestroyWindow(hwnd);
 		}
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
-    }
-    return 0;
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+	return 0;
 }
 
 
@@ -327,4 +328,114 @@ bool InitD3D()
 	}
 
 	return true;
+}
+
+void Update()
+{
+	// do app logic stuff
+}
+
+void UpdatePipeline()
+{
+	HRESULT hr;
+
+	WaitForPreviousFrame();
+
+	hr = commandAllocator[frameIndex]->Reset();
+	if (FAILED(hr))
+	{
+		Running = false;
+	}
+
+	hr = commandList->Reset(commandAllocator[frameIndex], NULL);
+	if (FAILED(hr))
+	{
+		Running = false;
+	}
+
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
+
+	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	hr = commandList->Close();
+	if (FAILED(hr))
+	{
+		Running = false;
+	}
+}
+
+void Render()
+{
+	HRESULT hr;
+
+	UpdatePipeline();
+
+	ID3D12CommandList* ppCommandLists[] = { commandList };
+
+	commandQueue->ExecuteCommandLists(1, ppCommandLists);
+
+	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
+	if (FAILED(hr))
+	{
+		Running = false;
+	}
+
+	hr = swapChain->Present(0, 0);
+	if (FAILED(hr))
+	{
+		Running = false;
+	}
+}
+
+void Cleanup()
+{
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		frameIndex = i;
+		WaitForPreviousFrame();
+	}
+
+	BOOL fs = false;
+	if (swapChain->GetFullscreenState(&fs, NULL))
+		swapChain->SetFullscreenState(false, NULL);
+
+	SAFE_RELEASE(device);
+	SAFE_RELEASE(swapChain);
+	SAFE_RELEASE(commandQueue);
+	SAFE_RELEASE(rtvDescriptorHeap);
+	SAFE_RELEASE(commandList);
+
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		SAFE_RELEASE(renderTargets[i]);
+		SAFE_RELEASE(commandAllocator[i]);
+		SAFE_RELEASE(fence[i]);
+	}
+}
+
+void WaitForPreviousFrame()
+{
+	HRESULT hr;
+
+	frameIndex = swapChain->GetCurrentBackBufferIndex();
+
+	if (fence[frameIndex]->GetCompletedValue() < fenceValue[frameIndex])
+	{
+		hr = fence[frameIndex]->SetEventOnCompletion(fenceValue[frameIndex], fenceEvent);
+		if (FAILED(hr))
+		{
+			Running = false;
+		}
+
+		WaitForSingleObject(fenceEvent, INFINITE);
+	}
+
+	fenceValue[frameIndex]++;
 }
