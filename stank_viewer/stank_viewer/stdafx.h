@@ -50,6 +50,18 @@ int frameIndex;
 
 int rtvDescriptorSize;
 
+ID3D12PipelineState* pipelineStateObject;
+
+ID3D12RootSignature* rootSignature;
+
+D3D12_VIEWPORT viewport;
+
+D3D12_RECT scissorRect;
+
+ID3D12Resource* vertexBuffer;
+
+D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
 // function declarations
 
 bool InitD3D();
